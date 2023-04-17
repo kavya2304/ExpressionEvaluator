@@ -1,16 +1,16 @@
 Project 2: Calculator Language
-========================================================================
+===============================================================
 ▶team name and Stevens login
 
 KavyaSri Thalluri     kthallur@stevens.edu
 Wenkai Xiao           wxiao7@stvens.edu
 
-========================================================================
+=================================================================
 ▶the URL of team public GitHub repo
 
 https://github.com/kavya2304/ExpressionEvaluator
 
-========================================================================
+=================================================================
 ▶an estimate of how many hours you spent on the project
 
 KavyaSri Thalluri：I spent 2 days nearly 20 hours for writing the basic functions and baseline of the program. For extensions I took another 10-15 hours , and for debugging other 10 hours so totally 40-50 hours I spent on this project. 
@@ -320,10 +320,13 @@ output : 1.0 4.0
 print  y
 output: 4.0
 
-Example: source_code = """
-print (2^10 - 2^7 * 3^2 + 5^3 - 7^2 * 2) / ((11^2 - 2^2) * 3^2 + 13^2 * 2^2) + (3^3 * 2^2 - 5^2 * 7 + 11^2) / ((2^3 * 5 - 3^2) * 7^2 + 17^2)
-"""
+Example: source_code = 
+```python
+print (2^10 - 2^7 * 3^2 + 5^3 - 7^2 * 2) / ((11^2 - 2^2) * 3^2 + 13^2 * 2^2) + (3^3 * 2^2 - 5^2 * 7 + 11^2) / ((2^3 * 5 - 3^2) * 7^2 + 17^2) 
 output: -0.02854801230441659
+```
+Input: 
+```python 
 print (4 + 5) * 3 > 25 && !(8 - 2 < 5) || true
 print (7 % 3 == 1 || 2 * 2 == 5) && false || !(1 + 2 < 5)
 print (true && false) || (true || false) && !(true && false)
@@ -335,7 +338,9 @@ output:
 0
 1
 0
+```
 Some more test cases:
+```python
 _abc_ - parse error
 abc - works
 1asd - parse error
@@ -343,4 +348,5 @@ abc_123_asd - works
 abc______ - works
 ______ - parse error
 print - parse error
+```
 ========================================================================

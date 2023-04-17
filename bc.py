@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[104]:
-
-
 import math
 import re
 import sys
@@ -57,7 +51,6 @@ token_expressions = [
     ('VARIABLE', r'[a-zA-Z_][a-zA-Z0-9_]*'),
 #     ('VARIABLE',r'[a-zA-Z_][a-zA-Z0-9_]*),
 
-    # Ignore whitespace and newlines
 #     ('IGNORE', r'\s+'),
     ('IGNORE', r'(?!\n)\s+'),
     ('NL',r'\n+'),
@@ -91,12 +84,7 @@ def lexer(program):
 
 # In[ ]:
 
-
-
-
-
 # In[105]:
-
 
 class ParseError(Exception):
     pass
@@ -233,6 +221,8 @@ def parse(tokens):
         global current
         if consume("VARIABLE"):
             variable_name = tokens[current - 1]["value"]
+            if variable_name[0] == '_':   #for checking variables name should not start with _
+                raise ParseError
             if consume("ASSIGN"):
                 values={}
                 values.update(expression_statement())
@@ -278,6 +268,8 @@ def parse(tokens):
         global current
         if tokens[current]["type"] == "PRINT":
             current += 1
+            if len(tokens)==current: #for checking if the input is just print
+                raise ParseError
             expressions = []
             expressions.append(expression_statement())
             while consume("COMMA"):
@@ -288,7 +280,7 @@ def parse(tokens):
             return assignment_statement()  
 
         elif tokens[current]["type"]=="NUMBER":
-            if tokens[current+1]["type"]=="VARIABLE":
+            if tokens[current+1]["type"]=="VARIABLE": #for checking variable name shouldnot start with numberz
                 raise ParseError
             return term()
         
@@ -317,8 +309,6 @@ def parse(tokens):
 
 
 # In[ ]:
-
-
 
 
 
@@ -376,7 +366,7 @@ def evaluate(ast, variables=None):
             elif operator=="NON":
                 return int(not right)
         elif expr["type"] == "Variable":
-            return variables.get(expr["value"], 0)  # return None for undefined variable
+            return variables.get(expr["value"], 0.0)  # return None for undefined variable
         elif expr["type"] == "BinaryExpression":
             if expr["right"]== None:
                 print('parse error')             
@@ -533,28 +523,5 @@ if __name__ == "__main__":
 # X = (true && false) || (true || false) && !(true && false)
 # X = 10 / 2 + 5 * 3 >= 25 && 8 % 3 != 1 || false
 # X = (3 * 4 < 5 + 6 || true) && false || !(8 % 2 == 0 && 9 - 4 > 4 + 1)
-
-
-# In[ ]:
-
-
-
-
-
-# In[86]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
 
 

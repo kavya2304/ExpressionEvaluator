@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[82]:
+# In[104]:
 
 
 import math
@@ -39,7 +39,7 @@ token_expressions = [
     ('MODULO', r'%'),
     ('POWER', r'\^'),
     ('ASSIGN', r'='),
-    ('INCREMENT', r'\++'),
+    ('INCREMENT', r'[\+]{}'),
     ('DECREMENT', r'--'),
     ('LPAREN', r'\('),
     ('RPAREN', r'\)'),
@@ -50,10 +50,12 @@ token_expressions = [
 
 
     # Constants
-    ('NUMBER', r'-?\d+(\.\d+)?'),
+#     ('NUMBER', r'-?\d+(\.\d+)?'),
+    ('NUMBER', r'-?[\d+\.+\d+]+'),
     ('MINUS', r'-'),
     # Variables
     ('VARIABLE', r'[a-zA-Z_][a-zA-Z0-9_]*'),
+#     ('VARIABLE',r'[a-zA-Z_][a-zA-Z0-9_]*),
 
     # Ignore whitespace and newlines
 #     ('IGNORE', r'\s+'),
@@ -78,6 +80,10 @@ def lexer(program):
                 tokens[-1]={"type": 'COMMENTST',"value":'/*'}
             elif token_type =='DIVIDE' and tokens[-1]['type']=='MULTIPLY':
                 tokens[-1]={"type": 'COMMENTEN',"value":'*/'}
+            elif token_type =='ASSIGN' and tokens[-1]['type']=='AND':
+                tokens[-1]={"type": 'ANDASSIGN',"value":'&&='}
+            elif token_type =='ASSIGN' and tokens[-1]['type']=='OR':
+                tokens[-1]={"type": 'ORASSIGN',"value":'||='}
             else:
                 tokens.append({"type": token_type, "value": token_value})
     return tokens
@@ -89,7 +95,7 @@ def lexer(program):
 
 
 
-# In[83]:
+# In[105]:
 
 
 class ParseError(Exception):
@@ -107,7 +113,6 @@ def parse(tokens):
         return False
 
     def expression():
-#         global current
         if consume("NUMBER"):
             expr = {"type": "NumberLiteral", "value": float(tokens[current - 1]["value"])}
             return expr
@@ -117,47 +122,56 @@ def parse(tokens):
             expr = expression()
             return {"type": "UnaryExpression", "operator": "!", "argument": expr}
         elif consume("LPAREN"):
-#             print('-----')
             expr = expression_statement()
             if consume("RPAREN"):
                 return expr
             else:
                 expr=expression_statement()
-                return expr 
-     
-    
-    def bar():
-        left=expression()
-        while consume("AdditionAssignment") or consume("SubtractionAssignment") or consume("MultiplicationAssignment") or consume("ModulusAssignment") or consume("DivisionAssignment") or consume("EORAssignment") :
-            operator = tokens[current - 1]["type"]
-            right = power()
-            if right==None:
-                raise ParseError
-            if not isinstance(left, dict) or left["type"] not in ["OperatorExpression"]:
-                left = {"type": "OperatorExpression", "left": left, "operator": operator, "right": right}
-            else:
-                left["right"] = {"type": "OperatorExpression", "left": left["right"], "operator": operator, "right": right}
-                
-        return left
-    
+                return expr    
 
     def power():
-        expr = bar()
+        expr = expression()
+#         print(expr)
         if consume("POWER"):
             return {"type": "PowerExpression", "left": expr, "right": power()}
         return expr
     
+#     def term():
+#         left = power()
+#         while consume("MULTIPLY") or consume("DIVIDE") or consume("MODULO"):
+#             operator = tokens[current - 1]["type"]
+#             right = power()
+#             if right==None:
+#                 raise ParseError
+#             if not isinstance(left, dict) or left["type"] not in ["BinaryExpression", "PowerExpression"]:
+#                 left = {"type": "BinaryExpression", "left": left, "operator": operator, "right": right}
+#             else:
+#                 left = {"type": "BinaryExpression", "left": left, "operator": operator, "right": {"type": "BinaryExpression", "left": left["right"], "operator": operator, "right": right}}
+# #                 left["right"] = {"type": "BinaryExpression", "left": left["right"], "operator": operator, "right": right}
+
+#         return left
     def term():
-        left = power()
+        left=power()
         while consume("MULTIPLY") or consume("DIVIDE") or consume("MODULO"):
-            operator = tokens[current - 1]["type"]
-            right = power()
-            if right==None:
-                raise ParseError
-            if not isinstance(left, dict) or left["type"] not in ["BinaryExpression", "PowerExpression"]:
-                left = {"type": "BinaryExpression", "left": left, "operator": operator, "right": right}
-            else:
-                left["right"] = {"type": "BinaryExpression", "left": left["right"], "operator": operator, "right": right}
+                operator = tokens[current - 1]["type"]
+                right = term()
+                if right==None:
+                    raise ParseError
+                if not isinstance(left, dict) or left["type"] not in ["BinaryExpression", "PowerExpression"]:
+                    left = {"type": "BinaryExpression", "left": left, "operator": operator, "right": right}
+                else:
+                    if operator=="*" or operator=="/" or operator=="%":
+                        if not isinstance(left["right"], dict) or left["right"]["type"] not in ["BinaryExpression", "PowerExpression"]:
+                            left = {"type": "BinaryExpression", "left": left, "operator": operator, "right": right}
+                        else:
+                            if operator=="*" and (left["right"]["type"]=="BinaryExpression" and left["right"]["operator"] in ["/", "%"]):
+                                left["right"] = {"type": "BinaryExpression", "left": left["right"], "operator": "*", "right": right}
+                            elif operator in ["/", "%"] and (left["right"]["type"]=="BinaryExpression" and left["right"]["operator"] in ["*", "/"]):
+                                left["right"] = {"type": "BinaryExpression", "left": left["right"], "operator": operator, "right": right}
+                            else:
+                                left = {"type": "BinaryExpression", "left": left, "operator": operator, "right": right}
+                    else:
+                        left = {"type": "BinaryExpression", "left": left, "operator": operator, "right": right}
         return left
 
     def expression_statement1():
@@ -166,13 +180,13 @@ def parse(tokens):
             operator = tokens[current - 1]["type"]
             right = term()
             left = {"type": "BinaryExpression", "left": left, "operator": operator, "right": right}
-        return left #{"type": "ExpressionStatement", "expression": left}
+        return left
     
     def rela():
         left=expression_statement1()
         while consume("Equality") or consume("NotEquality") or consume("Greater") or consume("GreaterEquality") or consume("Less") or consume("LessEquality"):
             operator = tokens[current - 1]["type"]
-            right = power()
+            right = expression_statement1()
             if right==None:
                 raise ParseError
             if not isinstance(left, dict) or left["type"] not in ["OperatorExpression"]:
@@ -186,7 +200,7 @@ def parse(tokens):
         left=rela()
         while consume("AND"):
             operator = tokens[current - 1]["type"]
-            right = power()
+            right = rela()
             if right==None:
                 raise ParseError
             if not isinstance(left, dict) or left["type"] not in ["OperatorExpression"]:
@@ -201,7 +215,7 @@ def parse(tokens):
         left=booland()
         while consume("OR"):
             operator = tokens[current - 1]["type"]
-            right = power()
+            right = booland()
             if right==None:
                 raise ParseError
             if not isinstance(left, dict) or left["type"] not in ["OperatorExpression"]:
@@ -243,6 +257,14 @@ def parse(tokens):
                 values = {}
                 values.update(expression_statement())
                 return {"type": "DivisionAssignment", "variable": variable_name,"value":values}
+            elif consume("ANDASSIGN"):
+                values = {}
+                values.update(expression_statement())
+                return {"type": "ANDASSIGN", "variable": variable_name,"value":values}     
+            elif consume("ORASSIGN"):
+                values = {}
+                values.update(expression_statement())
+                return {"type": "ORASSIGN", "variable": variable_name,"value":values}     
             elif consume("EORAssignment"):
                 values = {}
                 values.update(expression_statement())
@@ -266,6 +288,8 @@ def parse(tokens):
             return assignment_statement()  
 
         elif tokens[current]["type"]=="NUMBER":
+            if tokens[current+1]["type"]=="VARIABLE":
+                raise ParseError
             return term()
         
         elif tokens[current]["type"]=="COMMENT":
@@ -298,7 +322,7 @@ def parse(tokens):
 
 
 
-# In[84]:
+# In[106]:
 
 
 def evaluate(ast, variables=None):
@@ -317,6 +341,7 @@ def evaluate(ast, variables=None):
             left = eval_expression(expr["left"])
             operator = expr["operator"]
             if operator == "AdditionAssignment":
+                print('ppppppp')
                 return right+left
             elif operator=="SubtractionAssignment":
                 return right-left
@@ -375,6 +400,8 @@ def evaluate(ast, variables=None):
                 return left / right
             elif operator == "MODULO":
                 return left % right
+            elif operator =="POWER":
+                return left ** right
 
         elif expr["type"] == "PowerExpression":
             left = eval_expression(expr["left"])
@@ -391,7 +418,6 @@ def evaluate(ast, variables=None):
                     return 0
                 else:
                     return 1
-        
         
 
     def eval_statement(stmt, variables):
@@ -426,6 +452,17 @@ def evaluate(ast, variables=None):
             variables[stmt["variable"]] = variables.get(stmt["variable"], 0) % eval_expression(stmt["value"])
         elif stmt['type']=="DivisionAssignment":
             variables[stmt["variable"]] = variables.get(stmt["variable"], 0) / eval_expression(stmt["value"])
+        elif  stmt['type']=="ANDASSIGN":
+            if  (int(variables.get(stmt["variable"], 0)) and int(eval_expression(stmt["value"]))):
+                variables[stmt["variable"]] = 1
+            else:
+                variables[stmt["variable"]] = 0     
+        elif  stmt['type']=="ORASSIGN":
+            if  (int(variables.get(stmt["variable"], 0)) or int(eval_expression(stmt["value"]))):
+                variables[stmt["variable"]] = 1
+            else:
+                variables[stmt["variable"]] = 0  
+                
         elif stmt['type']=="EORAssignment":
             variables[stmt["variable"]] = int(variables.get(stmt["variable"], 0)) ** int(eval_expression(stmt["value"]))
         elif stmt["type"]=="BinaryExpression":
@@ -442,28 +479,7 @@ def evaluate(ast, variables=None):
 # #==================================================================
 
 
-# In[87]:
-
-
-# source_code = """
-# X= 3 > 25 && (8< 5) || !0
-# print X
-# """
-# try:
-#     tokens = lexer(source_code)
-#     ast = parse(tokens)
-#     if ast is not None:
-#         evaluate(ast)
-#     else:
-#         print("Parsing failed")
-# except ParseError as e:
-#         print('parse error')
-# except ZeroDivisionError as e:
-#     print('divide by zero')
-
-
-
-# In[86]:
+# In[107]:
 
 
 import sys
@@ -483,6 +499,52 @@ if __name__ == "__main__":
             print('parse error')
     except ZeroDivisionError as e:
         print('divide by zero')
+
+
+# In[108]:
+
+
+# source_code = """
+# print (2^10 - 2^7 * 3^2 + 5^3 - 7^2 * 2)
+# print (11^2 - 2^2) * 3^2 + 13^2 * 2^2
+# print (3^3 * 2^2 - 5^2 * 7 + 11^2)
+# print (2^3 * 5 - 3^2) * 7^2 + 17^2
+# print (2^10 - 2^7 * 3^2 + 5^3 - 7^2 * 2) / ((11^2 - 2^2) * 3^2 + 13^2 * 2^2) + (3^3 * 2^2 - 5^2 * 7 + 11^2) / ((2^3 * 5 - 3^2) * 7^2 + 17^2)
+# """
+# try:
+#     tokens = lexer(source_code)
+#     ast = parse(tokens)
+#     if ast is not None:
+#         evaluate(ast)
+#     else:
+#         print("Parsing failed")
+# except ParseError as e:
+#         print('parse error')
+# except ZeroDivisionError as e:
+#     print('divide by zero')
+
+
+
+# In[109]:
+
+
+# X = (4 + 5) * 3 > 25 && !(8 - 2 < 5) || true
+# X = (7 % 3 == 1 || 2 * 2 == 5) && false || !(1 + 2 < 5)
+# X = (true && false) || (true || false) && !(true && false)
+# X = 10 / 2 + 5 * 3 >= 25 && 8 % 3 != 1 || false
+# X = (3 * 4 < 5 + 6 || true) && false || !(8 % 2 == 0 && 9 - 4 > 4 + 1)
+
+
+# In[ ]:
+
+
+
+
+
+# In[86]:
+
+
+
 
 
 # In[ ]:

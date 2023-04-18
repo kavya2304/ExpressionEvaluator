@@ -51,6 +51,7 @@ token_expressions = [
     ('VARIABLE', r'[a-zA-Z_][a-zA-Z0-9_]*'),
 #     ('VARIABLE',r'[a-zA-Z_][a-zA-Z0-9_]*),
 
+    # Ignore whitespace and newlines
 #     ('IGNORE', r'\s+'),
     ('IGNORE', r'(?!\n)\s+'),
     ('NL',r'\n+'),
@@ -81,10 +82,14 @@ def lexer(program):
                 tokens.append({"type": token_type, "value": token_value})
     return tokens
 
-
 # In[ ]:
 
-# In[105]:
+
+
+
+
+# In[114]:
+
 
 class ParseError(Exception):
     pass
@@ -101,6 +106,7 @@ def parse(tokens):
         return False
 
     def expression():
+#         global current
         if consume("NUMBER"):
             expr = {"type": "NumberLiteral", "value": float(tokens[current - 1]["value"])}
             return expr
@@ -109,35 +115,46 @@ def parse(tokens):
         elif consume("NON"):
             expr = expression()
             return {"type": "UnaryExpression", "operator": "!", "argument": expr}
+        elif consume("INCREMENT"):
+            expr=expression()
+            return {"type": "IncrementExpression", "argument": expr}
+        elif consume("DECREMENT"):
+            expr=expression()
+            return {"type": "DecrementExpression", "argument": expr}
+        
         elif consume("LPAREN"):
+#             print('-----')
             expr = expression_statement()
             if consume("RPAREN"):
                 return expr
             else:
                 expr=expression_statement()
                 return expr    
-
+    def incdec():
+        expr=expression()
+        if consume("INCREMENT"):
+            return {"type": "IncrementExpression", "argument": expr}
+        elif consume("DECREMENT"):
+            return {"type": "DecrementExpression", "argument": expr}
+        else:
+            return expr
+    def preincdec():
+        global current
+        current+=1
+        expr=expression()
+        if tokens[current-2]["type"]== "INCREMENT":
+            return {"type": "IncrementExpression", "argument": expr}
+        elif tokens[current-2]["type"]== "DECREMENT":
+            return {"type": "DecrementExpression", "argument": expr}
+        else:
+            return expr           
+        
     def power():
-        expr = expression()
-#         print(expr)
+        expr = incdec()
         if consume("POWER"):
             return {"type": "PowerExpression", "left": expr, "right": power()}
         return expr
     
-#     def term():
-#         left = power()
-#         while consume("MULTIPLY") or consume("DIVIDE") or consume("MODULO"):
-#             operator = tokens[current - 1]["type"]
-#             right = power()
-#             if right==None:
-#                 raise ParseError
-#             if not isinstance(left, dict) or left["type"] not in ["BinaryExpression", "PowerExpression"]:
-#                 left = {"type": "BinaryExpression", "left": left, "operator": operator, "right": right}
-#             else:
-#                 left = {"type": "BinaryExpression", "left": left, "operator": operator, "right": {"type": "BinaryExpression", "left": left["right"], "operator": operator, "right": right}}
-# #                 left["right"] = {"type": "BinaryExpression", "left": left["right"], "operator": operator, "right": right}
-
-#         return left
     def term():
         left=power()
         while consume("MULTIPLY") or consume("DIVIDE") or consume("MODULO"):
@@ -168,7 +185,7 @@ def parse(tokens):
             operator = tokens[current - 1]["type"]
             right = term()
             left = {"type": "BinaryExpression", "left": left, "operator": operator, "right": right}
-        return left
+        return left #{"type": "ExpressionStatement", "expression": left}
     
     def rela():
         left=expression_statement1()
@@ -221,7 +238,7 @@ def parse(tokens):
         global current
         if consume("VARIABLE"):
             variable_name = tokens[current - 1]["value"]
-            if variable_name[0] == '_':   #for checking variables name should not start with _
+            if variable_name[0] == '_':
                 raise ParseError
             if consume("ASSIGN"):
                 values={}
@@ -267,9 +284,9 @@ def parse(tokens):
     def statement():
         global current
         if tokens[current]["type"] == "PRINT":
-            current += 1
-            if len(tokens)==current: #for checking if the input is just print
-                raise ParseError
+            current +=1
+            if len(tokens)==current:
+                raise ParseError              
             expressions = []
             expressions.append(expression_statement())
             while consume("COMMA"):
@@ -280,9 +297,11 @@ def parse(tokens):
             return assignment_statement()  
 
         elif tokens[current]["type"]=="NUMBER":
-            if tokens[current+1]["type"]=="VARIABLE": #for checking variable name shouldnot start with numberz
+            if tokens[current+1]["type"]=="VARIABLE":
                 raise ParseError
             return term()
+        elif tokens[current]["type"] == "INCREMENT" or tokens[current]["type"] == "DECREMENT" :
+            return preincdec()  
         
         elif tokens[current]["type"]=="COMMENT":
             while tokens[current]["type"]!="NL":
@@ -298,6 +317,7 @@ def parse(tokens):
             return False
 
     program = {"type": "Program", "body": []}
+#     print('len',len(tokens))
     while current < len(tokens):
         stmt = statement()
         if stmt:
@@ -307,12 +327,13 @@ def parse(tokens):
 
     return program
 
-
 # In[ ]:
 
 
 
-# In[106]:
+
+
+# In[115]:
 
 
 def evaluate(ast, variables=None):
@@ -367,6 +388,12 @@ def evaluate(ast, variables=None):
                 return int(not right)
         elif expr["type"] == "Variable":
             return variables.get(expr["value"], 0.0)  # return None for undefined variable
+        # elif expr["type"] == "Variable":
+        #     try:
+        #         return variables[expr["value"]]
+        #     except KeyError:
+        #         raise ParseError
+                
         elif expr["type"] == "BinaryExpression":
             if expr["right"]== None:
                 print('parse error')             
@@ -399,11 +426,18 @@ def evaluate(ast, variables=None):
             return left ** right
         elif expr["type"] == 'ExpressionStatement':
             return eval_expression(expr['expression'])
+        elif expr["type"] == 'IncrementExpression':
+            variable_name = expr['argument']['value']
+            variables[variable_name] = variables.get(variable_name, 0) + 1
+            return variables[variable_name]
+        elif expr["type"] == 'DecrementExpression':
+            variable_name = expr['argument']['value']
+            variables[variable_name] = variables.get(variable_name, 0) - 1
+            return variables[variable_name]
         
         elif expr["type"] == 'UnaryExpression':
             if expr["operator"] == '!':
                 a = eval_expression(expr['argument'])
-                #print('abcdefg')
                 if a:
                     return 0
                 else:
@@ -419,8 +453,11 @@ def evaluate(ast, variables=None):
                     evaluated_values1.append(evaluated_value)
                 except ZeroDivisionError:
                     evaluated_values1.append("divide by zero")
+                except ParseError:
+                    raise ParseError
                 except Exception as e:
                     evaluated_values1.append(str(e))
+                
             print(*evaluated_values1)
 
         elif stmt["type"] == "AssignmentStatement":
@@ -459,6 +496,13 @@ def evaluate(ast, variables=None):
             val=eval_expression(stmt)
         elif stmt["type"]=="OperatorExpression":
             val=eval_expression(stmt)
+        elif stmt["type"]=="IncrementExpression":
+            variable_name = stmt['argument']['value']
+            variables[variable_name] = variables.get(variable_name, 0) + 1
+        elif stmt["type"]=="DecrementExpression":
+            variable_name = stmt['argument']['value']
+            variables[variable_name] = variables.get(variable_name, 0) - 1
+            
                         
 
     for statement in ast["body"]:
@@ -467,6 +511,28 @@ def evaluate(ast, variables=None):
     return evaluated_values
 
 # #==================================================================
+# #==================================================================
+
+
+# In[118]:
+
+
+# source_code = """
+# print x, y
+# """
+# try:
+#     tokens = lexer(source_code)
+#     ast = parse(tokens)
+#     if ast is not None:
+#         evaluate(ast)
+#     else:
+#         print("Parsing failed")
+# except ParseError as e:
+#         print('parse error')
+# except ZeroDivisionError as e:
+#     print('divide by zero')
+
+ 
 
 
 # In[107]:
